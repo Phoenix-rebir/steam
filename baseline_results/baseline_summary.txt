@@ -1,0 +1,24 @@
+Baseline Models Summary
+======================
+
+Data preprocessing:
+- Original records: 199999
+- After filtering: 54017
+
+1. Model Performance
+-------------------
+- Item Mean: MAE = 45.4903, RMSE = 125.0624
+- Popularity Model: MAE = 45.2388, RMSE = 126.9531
+- Global Mean: MAE = 53.9768, RMSE = 129.4065
+- User Mean: MAE = 57.7994, RMSE = 152.4522
+
+2. Model Characteristics
+------------------------
+- Global Mean: Predicts global average playtime.
+- User Mean: Uses per-user historical average.
+- Item Mean: Uses per-game average playtime.
+- Popularity Model: Groups games by total playtime deciles.
+
+3. Best Performing Model
+-----------------------
+Item Mean achieves the lowest RMSE: 125.0624
