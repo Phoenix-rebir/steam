@@ -17,8 +17,71 @@ df = pd.read_csv("data.csv")
 user_list = sorted(df["user-id"].unique())
 
 # 2. Load serialized model and all necessary variables
-with open("model.pkl", "rb") as f:
-    model_data = pickle.load(f)
+import os
+
+# Prefer remote model URL for direct download
+MODEL_FILE = "model.pkl"
+MODEL_URL = "https://thk.s3.wangty88.us/model.pkl"
+
+def _download_model(url, dest_path):
+    # Prefer huggingface_hub if available (handles auth, redirects, large files/LFS)
+    hf_token = os.getenv("HUGGINGFACE_HUB_TOKEN") or os.getenv("HF_TOKEN")
+    try:
+        from huggingface_hub import hf_hub_download
+        try:
+            with st.spinner("Downloading model via huggingface_hub..."):
+                repo_id = "HongkunTian/steam"
+                # hf_hub_download will raise if file not found or auth required
+                path = hf_hub_download(repo_id=repo_id, filename=os.path.basename(dest_path), token=hf_token)
+                # hf_hub_download returns local path; copy to dest_path if different
+                if path != dest_path:
+                    import shutil
+                    shutil.copy(path, dest_path)
+                return
+        except Exception as e:
+            # fall back to requests-based download
+            st.warning(f"huggingface_hub download failed: {e}. Falling back to HTTP download...")
+    except Exception:
+        # huggingface_hub not installed; continue to HTTP fallback
+        pass
+
+    # HTTP(S) fallback with retries
+    try:
+        import requests
+        from requests.adapters import HTTPAdapter
+        from urllib3.util import Retry
+    except Exception:
+        raise RuntimeError("'requests' (and urllib3) libraries are required to download remote model. Install via 'pip install requests urllib3'.")
+
+    session = requests.Session()
+    retries = Retry(total=5, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+
+    with st.spinner("Downloading model from Hugging Face (HTTP)..."):
+        headers = {}
+        if hf_token:
+            headers["Authorization"] = f"Bearer {hf_token}"
+        resp = session.get(url, stream=True, timeout=30, headers=headers)
+        resp.raise_for_status()
+        with open(dest_path, "wb") as fh:
+            for chunk in resp.iter_content(chunk_size=8192):
+                if chunk:
+                    fh.write(chunk)
+
+if not os.path.exists(MODEL_FILE):
+    try:
+        _download_model(MODEL_URL, MODEL_FILE)
+        st.success("Model downloaded successfully.")
+    except Exception as e:
+        st.error(f"Failed to obtain model.pkl from {MODEL_URL}: {e}")
+        st.stop()
+
+try:
+    with open(MODEL_FILE, "rb") as f:
+        model_data = pickle.load(f)
+except Exception as e:
+    st.error(f"Failed to load model file '{MODEL_FILE}': {e}")
+    st.stop()
 
 # Unpack model data
 user_item_matrix = model_data.get('user_item_matrix')
